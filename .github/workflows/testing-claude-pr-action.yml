@@ -1,0 +1,51 @@
+name: Claude PR Action
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude-pr:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: development
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Debug Event
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Issue or comment body contains @claude: ${{ contains(github.event.issue.body, '@claude') || contains(github.event.comment.body, '@claude') }}"
+          if [ "${{ github.event_name }}" == "issues" ]; then
+            echo "Issue body: ${{ github.event.issue.body }}"
+          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+            echo "Comment body: ${{ github.event.comment.body }}"
+          fi
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          trigger_phrase: '@claude'
+          timeout_minutes: '15'
+          model: 'anthropic.claude-sonnet-4-20250514-v1:0'
+          use_bedrock: 'true'
